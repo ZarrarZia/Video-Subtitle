@@ -1,5 +1,19 @@
+# Build artifacts
 dist
-.DS_Store
-*.egg-info
-auto_subtitle/__pycache__
 build
+*.egg-info
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Generated subtitles and videos
+output/
+*.srt
+
+# OS files
+.DS_Store
+Thumbs.db
