@@ -1,4 +1,14 @@
 import os
+import shutil
+import glob
+
+# Ensure ffmpeg directory is in PATH on Windows if not already found
+if shutil.which("ffmpeg") is None and os.name == "nt":
+    winget_pkg_pattern = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\*ffmpeg*\**\bin")
+    matches = glob.glob(winget_pkg_pattern, recursive=True)
+    if matches:
+        os.environ["PATH"] = matches[0] + os.pathsep + os.environ.get("PATH", "")
+
 import ffmpeg
 import whisper
 import argparse
@@ -62,9 +72,22 @@ def main():
         video = ffmpeg.input(path)
         audio = video.audio
 
+        # Use relative path with forward slashes for ffmpeg subtitle filter
+        try:
+            filter_srt_path = os.path.relpath(srt_path).replace('\\', '/')
+        except ValueError:
+            filter_srt_path = srt_path.replace('\\', '/')
+
         ffmpeg.concat(
-            video.filter('subtitles', srt_path, force_style="OutlineColour=&H40000000,BorderStyle=3"), audio, v=1, a=1
+            video.filter('subtitles', filter_srt_path, force_style="OutlineColour=&H40000000,BorderStyle=3"), audio, v=1, a=1
         ).output(out_path).run(quiet=True, overwrite_output=True)
+
+        # Clean up temporary SRT file if user did not request saving it
+        if not output_srt and not srt_only and os.path.exists(srt_path):
+            try:
+                os.remove(srt_path)
+            except OSError:
+                pass
 
         print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
 
@@ -92,8 +115,7 @@ def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcri
     subtitles_path = {}
 
     for path, audio_path in audio_paths.items():
-        srt_path = output_dir if output_srt else tempfile.gettempdir()
-        srt_path = os.path.join(srt_path, f"{filename(path)}.srt")
+        srt_path = os.path.join(output_dir, f"{filename(path)}.srt")
         
         print(
             f"Generating subtitles for {filename(path)}... This might take a while."
